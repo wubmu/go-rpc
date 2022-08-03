@@ -3,10 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"go-gpc/1-codec"
-	"go-gpc/1-codec/codec"
 	"log"
 	"net"
+	"rpc"
+	"rpc/codec"
 	"time"
 )
 
@@ -22,6 +22,7 @@ func startServer(addr chan string) {
 }
 
 func main() {
+	fmt.Println("123")
 	addr := make(chan string)
 	go startServer(addr)
 
