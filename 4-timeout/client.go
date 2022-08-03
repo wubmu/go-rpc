@@ -278,6 +278,8 @@ func dialTimeout(f newClientFunc, network, address string, opts ...*Option) (cli
 		return result.client, result.err
 	}
 	select {
+
+	//	//如果在timeout后call才调用结束，但已经超时，直接返回，将不会接受called，存在goroutines泄露
 	case <-time.After(opt.ConnectTimeout):
 		return nil, fmt.Errorf("rpc client: connect timeout: expect within %s", opt.ConnectTimeout)
 	case result := <-ch:
