@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net"
+	"net/http"
 	"rpc"
 	"sync"
 	"time"
@@ -21,28 +22,19 @@ func (f Foo) Sum(args Args, reply *int) error {
 
 // 第二步注册到Server ,并启动RPC服务器
 
-func startServer(addr chan string) {
+func startServer(addrCh chan string) {
 	var foo Foo
-	if err := rpc.Register(&foo); err != nil {
-		log.Fatal("register error:", err)
-	}
-	// pick a free port
-	l, err := net.Listen("tcp", ":0")
-	if err != nil {
-		log.Fatal("network error:", err)
-	}
-	log.Println("start rpc server on", l.Addr())
-	addr <- l.Addr().String()
-	rpc.Accept(l)
+	l, _ := net.Listen("tcp", ":9999")
+	_ = rpc.Register(&foo)
+	rpc.HandleHTTP()
+	addrCh <- l.Addr().String()
+	_ = http.Serve(l, nil)
 }
 
-//第三步，构造参数，发送 RPC 请求，并打印结果。
-func main() {
-	// 启动RPC服务器
-	log.SetFlags(0)
-	addr := make(chan string)
-	go startServer(addr)
-	client, _ := rpc.Dial("tcp", <-addr)
+func call(addrCh chan string) {
+	//rpc.Dial()
+	client, _ := rpc.DialHTTP("tcp", <-addrCh)
+	//client, _ := rpc.Dial("tcp", <-addrCh)
 	defer func() { _ = client.Close() }()
 
 	time.Sleep(time.Second)
@@ -61,4 +53,13 @@ func main() {
 		}(i)
 	}
 	wg.Wait()
+}
+
+//第三步，构造参数，发送 RPC 请求，并打印结果。
+func main() {
+	log.SetFlags(0)
+	ch := make(chan string)
+
+	go call(ch)
+	startServer(ch)
 }

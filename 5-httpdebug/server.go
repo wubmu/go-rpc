@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"reflect"
 	"rpc/codec"
 	"strings"
@@ -58,7 +59,6 @@ func Accept(lis net.Listener) { DefaultServer.Accept(lis) }
 
 // ServeConn runs the server on a single connection.
 // ServeConn blocks, serving the connection until the client hangs up.
-// 在服务器端建立一个连接，直到client终止
 func (server *Server) ServeConn(conn io.ReadWriteCloser) {
 	defer func() { _ = conn.Close() }()
 	var opt Option
@@ -227,4 +227,62 @@ func (server *Server) findService(serviceMethod string) (svc *service, mtype *me
 		err = errors.New("rpc server: can't find method " + methodName)
 	}
 	return
+}
+
+/**
+8-7: HTTP
+*/
+const (
+	connected        = "200 Connected to Gee RPC"
+	defaultRPCPath   = "/_geeprc_"
+	defaultDebugPath = "/debug/geerpc"
+)
+
+// ServeHTTP 实现了一个响应 RPC 请求的 http.Handler。
+//func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+//	// 必须是connect协议
+//	if req.Method != "CONNECT" {
+//		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+//		w.WriteHeader(http.StatusMethodNotAllowed)
+//		_, _ = io.WriteString(w, "405 must CONNECT\n")
+//		return
+//	}
+//	conn, _, err := w.(http.Hijacker).Hijack()
+//	if err != nil {
+//		log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())
+//		return
+//	}
+//
+//	_, _ = io.WriteString(conn, "HTTP/1.0"+connected+"\n\n")
+//	server.ServeConn(conn)
+//}
+func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if req.Method != "CONNECT" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		_, _ = io.WriteString(w, "405 must CONNECT\n")
+		return
+	}
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())
+		return
+	}
+	_, _ = io.WriteString(conn, "HTTP/1.0 "+connected+"\n\n")
+	server.ServeConn(conn)
+}
+
+//HandleHTTP 为 rpcPath 上的 RPC 消息注册一个 HTTP 处理程序。
+// It is still necessary to invoke http.Serve(), typically in a go statement.
+func (server *Server) HandleHTTP() {
+	//http.Handle(defaultDebugPath, server)
+	http.Handle(defaultRPCPath, server)
+	http.Handle(defaultDebugPath, debugHTTP{server})
+	log.Println("rpc server debug path:", defaultDebugPath)
+}
+
+//HandleHTTP 是默认服务器注册 HTTP 处理程序的便捷方法
+// HandleHTTP is a convenient approach for default server to register HTTP handlers
+func HandleHTTP() {
+	DefaultServer.HandleHTTP()
 }
